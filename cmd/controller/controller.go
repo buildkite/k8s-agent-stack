@@ -32,6 +32,18 @@ import (
 
 var configFile string
 
+// validateLowercase checks if a string contains any uppercase characters
+func validateLowercase(fl validator.FieldLevel) bool {
+	return fl.Field().String() == strings.ToLower(fl.Field().String())
+}
+
+// init registers custom validators
+func init() {
+	if err := validate.RegisterValidation("lowercase", validateLowercase); err != nil {
+		log.Fatalf("failed to register lowercase validator: %v", err)
+	}
+}
+
 func AddConfigFlags(cmd *cobra.Command) {
 	// the config file flag
 	cmd.Flags().StringVarP(&configFile, "config", "f", "", "config file path")
@@ -205,7 +217,7 @@ func useJSONTagForDecoder(c *mapstructure.DecoderConfig) {
 	c.TagName = "json"
 }
 
-// ParseAndValidateConfig parses the config into a struct and validates the values.
+// / ParseAndValidateConfig parses the config into a struct and validates the values.
 func ParseAndValidateConfig(v *viper.Viper) (*config.Config, error) {
 	// We want to let the user know if they have any extra fields, so use UnmarshalExact.
 	// The user likely expects every part of their config to be meaningful, so if some of it is
@@ -223,11 +235,31 @@ func ParseAndValidateConfig(v *viper.Viper) (*config.Config, error) {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
 
+	// Check main image is lowercase
+	if cfg.Image != strings.ToLower(cfg.Image) {
+		return nil, fmt.Errorf("image must be lowercase: %s", cfg.Image)
+	}
+
 	if err := validate.Struct(cfg); err != nil {
 		return nil, fmt.Errorf("failed to validate config: %w", err)
 	}
 
 	if cfg.PodSpecPatch != nil {
+		// Validate container images are lowercase
+		for _, c := range cfg.PodSpecPatch.Containers {
+			if c.Image != strings.ToLower(c.Image) {
+				return nil, fmt.Errorf("container image must be lowercase: %s", c.Image)
+			}
+		}
+
+		// Validate init container images are lowercase
+		for _, c := range cfg.PodSpecPatch.InitContainers {
+			if c.Image != strings.ToLower(c.Image) {
+				return nil, fmt.Errorf("init container image must be lowercase: %s", c.Image)
+			}
+		}
+
+		// Existing command/args check
 		for _, c := range cfg.PodSpecPatch.Containers {
 			if len(c.Command) != 0 || len(c.Args) != 0 {
 				return nil, scheduler.ErrNoCommandModification

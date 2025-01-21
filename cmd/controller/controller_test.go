@@ -1,6 +1,7 @@
 package controller_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/buildkite/agent-stack-k8s/v2/internal/controller/config"
 	"github.com/google/go-cmp/cmp"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -15,6 +17,123 @@ import (
 
 func ptr[T any](v T) *T {
 	return &v
+}
+
+func TestParseAndValidateConfig_ImageCase(t *testing.T) {
+	tests := []struct {
+		name       string
+		modifyConf func(*viper.Viper)
+		wantErrMsg string
+	}{
+		{
+			name: "valid lowercase images",
+			modifyConf: func(v *viper.Viper) {
+				v.Set("image", "my.registry.dev/buildkite-agent:latest")
+				v.Set("agent-token-secret", "my-kubernetes-secret")
+				v.Set("buildkite-token", "not-a-token")
+				v.Set("namespace", "my-buildkite-ns")
+				v.Set("org", "my-buildkite-org")
+				v.Set("tags", []string{"queue=my-queue"})
+				v.Set("max-in-flight", 100)
+				v.Set("pod-spec-patch", map[string]interface{}{
+					"containers": []interface{}{
+						map[string]interface{}{
+							"name":  "container-0",
+							"image": "example.org/my-container:latest",
+						},
+					},
+					"initContainers": []interface{}{
+						map[string]interface{}{
+							"name":  "init-0",
+							"image": "example.org/init-container:latest",
+						},
+					},
+				})
+			},
+		},
+		{
+			name: "invalid uppercase in main image",
+			modifyConf: func(v *viper.Viper) {
+				v.Set("image", "my.registry.dev/Buildkite-agent:latest")
+				v.Set("agent-token-secret", "my-kubernetes-secret")
+				v.Set("buildkite-token", "not-a-token")
+				v.Set("namespace", "my-buildkite-ns")
+				v.Set("org", "my-buildkite-org")
+				v.Set("tags", []string{"queue=my-queue"})
+				v.Set("max-in-flight", 100)
+			},
+			wantErrMsg: "image must be lowercase: my.registry.dev/Buildkite-agent:latest",
+		},
+		{
+			name: "invalid uppercase in container image",
+			modifyConf: func(v *viper.Viper) {
+				v.Set("image", "my.registry.dev/buildkite-agent:latest")
+				v.Set("agent-token-secret", "my-kubernetes-secret")
+				v.Set("buildkite-token", "not-a-token")
+				v.Set("namespace", "my-buildkite-ns")
+				v.Set("org", "my-buildkite-org")
+				v.Set("tags", []string{"queue=my-queue"})
+				v.Set("max-in-flight", 100)
+				v.Set("pod-spec-patch", map[string]interface{}{
+					"containers": []interface{}{
+						map[string]interface{}{
+							"name":  "container-0",
+							"image": "example.org/My-container:latest",
+						},
+					},
+				})
+			},
+			wantErrMsg: "container image must be lowercase: example.org/My-container:latest",
+		},
+		{
+			name: "invalid uppercase in init container image",
+			modifyConf: func(v *viper.Viper) {
+				v.Set("image", "my.registry.dev/buildkite-agent:latest")
+				v.Set("agent-token-secret", "my-kubernetes-secret")
+				v.Set("buildkite-token", "not-a-token")
+				v.Set("namespace", "my-buildkite-ns")
+				v.Set("org", "my-buildkite-org")
+				v.Set("tags", []string{"queue=my-queue"})
+				v.Set("max-in-flight", 100)
+				v.Set("pod-spec-patch", map[string]interface{}{
+					"initContainers": []interface{}{
+						map[string]interface{}{
+							"name":  "init-0",
+							"image": "example.org/Init-container:latest",
+						},
+					},
+				})
+			},
+			wantErrMsg: "init container image must be lowercase: example.org/Init-container:latest",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set required environment variables
+			t.Setenv("BUILDKITE_TOKEN", "my-graphql-enabled-token")
+			t.Setenv("IMAGE", "")
+			t.Setenv("NAMESPACE", "")
+
+			// Create a new Viper instance
+			v := viper.NewWithOptions(
+				viper.KeyDelimiter("::"),
+				viper.EnvKeyReplacer(strings.NewReplacer("-", "_")),
+			)
+
+			// Apply the test modifications
+			tt.modifyConf(v)
+
+			// Parse and validate the config
+			_, err := controller.ParseAndValidateConfig(v)
+			if tt.wantErrMsg != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.wantErrMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestReadAndParseConfig(t *testing.T) {
