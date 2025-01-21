@@ -52,7 +52,27 @@ func TestParseAndValidateConfig_ImageCase(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid uppercase in main image",
+			name: "valid images with uppercase tags",
+			modifyConf: func(v *viper.Viper) {
+				v.Set("image", "my.registry.dev/buildkite-agent:V1.2.3")
+				v.Set("agent-token-secret", "my-kubernetes-secret")
+				v.Set("buildkite-token", "not-a-token")
+				v.Set("namespace", "my-buildkite-ns")
+				v.Set("org", "my-buildkite-org")
+				v.Set("tags", []string{"queue=my-queue"})
+				v.Set("max-in-flight", 100)
+				v.Set("pod-spec-patch", map[string]interface{}{
+					"containers": []interface{}{
+						map[string]interface{}{
+							"name":  "container-0",
+							"image": "example.org/my-container:TEST-123",
+						},
+					},
+				})
+			},
+		},
+		{
+			name: "invalid uppercase in main image name",
 			modifyConf: func(v *viper.Viper) {
 				v.Set("image", "my.registry.dev/Buildkite-agent:latest")
 				v.Set("agent-token-secret", "my-kubernetes-secret")
@@ -62,10 +82,10 @@ func TestParseAndValidateConfig_ImageCase(t *testing.T) {
 				v.Set("tags", []string{"queue=my-queue"})
 				v.Set("max-in-flight", 100)
 			},
-			wantErrMsg: "image must be lowercase: my.registry.dev/Buildkite-agent:latest",
+			wantErrMsg: "image name must be lowercase (tag can be mixed case): my.registry.dev/Buildkite-agent:latest",
 		},
 		{
-			name: "invalid uppercase in container image",
+			name: "invalid uppercase in container image name",
 			modifyConf: func(v *viper.Viper) {
 				v.Set("image", "my.registry.dev/buildkite-agent:latest")
 				v.Set("agent-token-secret", "my-kubernetes-secret")
@@ -78,33 +98,12 @@ func TestParseAndValidateConfig_ImageCase(t *testing.T) {
 					"containers": []interface{}{
 						map[string]interface{}{
 							"name":  "container-0",
-							"image": "example.org/My-container:latest",
+							"image": "example.org/My-container:V1.0",
 						},
 					},
 				})
 			},
-			wantErrMsg: "container image must be lowercase: example.org/My-container:latest",
-		},
-		{
-			name: "invalid uppercase in init container image",
-			modifyConf: func(v *viper.Viper) {
-				v.Set("image", "my.registry.dev/buildkite-agent:latest")
-				v.Set("agent-token-secret", "my-kubernetes-secret")
-				v.Set("buildkite-token", "not-a-token")
-				v.Set("namespace", "my-buildkite-ns")
-				v.Set("org", "my-buildkite-org")
-				v.Set("tags", []string{"queue=my-queue"})
-				v.Set("max-in-flight", 100)
-				v.Set("pod-spec-patch", map[string]interface{}{
-					"initContainers": []interface{}{
-						map[string]interface{}{
-							"name":  "init-0",
-							"image": "example.org/Init-container:latest",
-						},
-					},
-				})
-			},
-			wantErrMsg: "init container image must be lowercase: example.org/Init-container:latest",
+			wantErrMsg: "image name must be lowercase (tag can be mixed case): example.org/My-container:V1.0",
 		},
 	}
 
