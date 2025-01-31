@@ -548,7 +548,6 @@ func TestInterposerBuildkite(t *testing.T) {
 	assert.Contains(t, logs, "Hello World!")
 	assert.Contains(t, logs, "Goodbye World!")
 	assert.NotContains(t, logs, "Hello World! echo Goodbye World!")
-
 }
 
 func TestInterposerVector(t *testing.T) {
