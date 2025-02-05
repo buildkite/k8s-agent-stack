@@ -131,6 +131,7 @@ Flags:
       --image string                               The image to use for the Buildkite agent (default "ghcr.io/buildkite/agent:3.78.0")
       --image-pull-backoff-grace-period duration   Duration after starting a pod that the controller will wait before considering cancelling a job due to ImagePullBackOff (e.g. when the podSpec specifies container images that cannot be pulled) (default 30s)
       --job-ttl duration                           time to retain kubernetes jobs after completion (default 10m0s)
+      --job-active-deadline-seconds duration       amount of time a kubernetes job is allowed to run before terminating all pods and failing (default 6h)
       --k8s-client-rate-limiter-qps int            number of queries per second allowed to Kubernetes API, once Burst has been exhausted (default 10)
       --k8s-client-rate-limiter-burst int          number of queries allowed before throttling requests to Kubernetes API, before using QPS (default 20)
       --max-in-flight int                          max jobs in flight, 0 means no max (default 25)
@@ -1045,6 +1046,9 @@ With `prohibit-kubernetes-plugin` enabled, any job containing the kubernetes
 plugin will fail.
 
 ## Debugging
+
+Enable debug logging via the command line (`--debug`) or within the `values.yaml` file (`debug: true`)
+
 Use the `log-collector` script in the `utils` folder to collect logs for agent-stack-k8s.
 
 ### Prerequisites

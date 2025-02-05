@@ -53,6 +53,7 @@ type Config struct {
 	Image                       string
 	AgentTokenSecretName        string
 	JobTTL                      time.Duration
+	JobActiveDeadlineSeconds    time.Duration
 	AdditionalRedactedVars      []string
 	WorkspaceVolume             *corev1.Volume
 	AgentConfig                 *config.AgentConfig
@@ -353,6 +354,9 @@ func (w *worker) Build(podSpec *corev1.PodSpec, skipCheckout bool, inputs buildI
 
 	ttl := int32(w.cfg.JobTTL.Seconds())
 	kjob.Spec.TTLSecondsAfterFinished = &ttl
+
+	activeDeadlineSeconds := int64(w.cfg.JobActiveDeadlineSeconds.Seconds())
+	kjob.Spec.ActiveDeadlineSeconds = &activeDeadlineSeconds
 
 	// Env vars used for command containers
 	containerEnv := append([]corev1.EnvVar{}, env...)

@@ -71,6 +71,11 @@ func AddConfigFlags(cmd *cobra.Command) {
 		"time to retain kubernetes jobs after completion",
 	)
 	cmd.Flags().Duration(
+		"job-active-deadline-seconds",
+		6*time.Hour,
+		"amount of time a kubernetes job is allowed to run before terminating all pods and failing job",
+	)
+	cmd.Flags().Duration(
 		"poll-interval",
 		time.Second,
 		"time to wait between polling for new jobs (minimum 1s); note that increasing this causes jobs to be slower to start",
