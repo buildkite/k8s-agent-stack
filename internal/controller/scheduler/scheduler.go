@@ -560,7 +560,7 @@ func (w *worker) Build(podSpec *corev1.PodSpec, skipCheckout bool, inputs buildI
 		)
 	}
 
-	initContainers := []corev1.Container{w.createWorkspaceSetupContainer(podSpec, workspaceVolume)}
+	podSpec.InitContainers = append(podSpec.InitContainers, w.createWorkspaceSetupContainer(podSpec, workspaceVolume))
 
 	// Only attempt the job once.
 	podSpec.RestartPolicy = corev1.RestartPolicyNever
@@ -671,7 +671,6 @@ func (w *worker) Build(podSpec *corev1.PodSpec, skipCheckout bool, inputs buildI
 		}
 	}
 
-	cullCheckForExisting(initContainers[0])    // the workspace setup container
 	for _, c := range podSpec.InitContainers { // user-defined init containers
 		cullCheckForExisting(c)
 	}
@@ -726,7 +725,7 @@ func (w *worker) Build(podSpec *corev1.PodSpec, skipCheckout bool, inputs buildI
 			zap.String("image", image),
 			zap.String("policy", string(policy)),
 		)
-		initContainers = append(initContainers, corev1.Container{
+		podSpec.InitContainers = append(podSpec.InitContainers, corev1.Container{
 			Name:            name,
 			Image:           image,
 			ImagePullPolicy: policy,
@@ -744,9 +743,6 @@ func (w *worker) Build(podSpec *corev1.PodSpec, skipCheckout bool, inputs buildI
 		i++
 	}
 
-	// Prepend all the init containers defined above to the podspec.
-	podSpec.InitContainers = append(initContainers, podSpec.InitContainers...)
-
 	kjob.Spec.Template.Spec = *podSpec
 
 	return kjob, nil
@@ -761,6 +757,26 @@ func PatchPodSpec(original *corev1.PodSpec, patch *corev1.PodSpec, cmdParams *co
 	for i := range original.Containers {
 		c := &original.Containers[i]
 		originalContainers[c.Name] = c
+	}
+
+	// We do special stuff™️ with init-container commands to make them run as
+	// buildkite agent things under the hood, so don't let users mess with them
+	// via podSpecPatch.
+	for i := range patch.InitContainers {
+		c := &patch.InitContainers[i]
+		if len(c.Command) == 0 && len(c.Args) == 0 {
+			// No modification (strategic merge won't set these to empty).
+			continue
+		}
+		oc := originalContainers[c.Name]
+		if oc != nil && slices.Equal(c.Command, oc.Command) && slices.Equal(c.Args, oc.Args) {
+			// No modification (original and patch are equal).
+			continue
+		}
+
+		if CopyAgentContainerName == c.Name {
+			return nil, fmt.Errorf("for the agent container, %w", ErrNoCommandModification)
+		}
 	}
 
 	// We do special stuff™️ with container commands to make them run as
@@ -778,7 +794,7 @@ func PatchPodSpec(original *corev1.PodSpec, patch *corev1.PodSpec, cmdParams *co
 			continue
 		}
 
-		// Some modification is occuring.
+		// Some modification is occurring.
 		// What we prevent vs what we fix up depends on the type of container.
 
 		// Agent, checkout: prevent command modification entirely.
