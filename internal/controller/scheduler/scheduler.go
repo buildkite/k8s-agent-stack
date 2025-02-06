@@ -356,12 +356,13 @@ func (w *worker) Build(podSpec *corev1.PodSpec, skipCheckout bool, inputs buildI
 	ttl := int32(w.cfg.JobTTL.Seconds())
 	kjob.Spec.TTLSecondsAfterFinished = &ttl
 
-	// Use job.spec.activeDeadlineSeconds, if provided by the plugin
-	if inputs.k8sPlugin != nil && inputs.k8sPlugin.Job.Spec.ActiveDeadlineSeconds != nil {
-		kjob.Spec.ActiveDeadlineSeconds = inputs.k8sPlugin.Job.Spec.ActiveDeadlineSeconds
-	} else {
-		activeDeadlineSeconds := int64(w.cfg.JobActiveDeadlineSeconds.Seconds())
-		kjob.Spec.ActiveDeadlineSeconds = &activeDeadlineSeconds
+	activeDeadlineSeconds := int64(w.cfg.JobActiveDeadlineSeconds.Seconds())
+	kjob.Spec.ActiveDeadlineSeconds = &activeDeadlineSeconds
+
+	if inputs.k8sPlugin != nil && inputs.k8sPlugin.Job != nil {
+		if inputs.k8sPlugin.Job.Spec.ActiveDeadlineSeconds != nil {
+			kjob.Spec.ActiveDeadlineSeconds = inputs.k8sPlugin.Job.Spec.ActiveDeadlineSeconds
+		}
 	}
 
 	// Env vars used for command containers
