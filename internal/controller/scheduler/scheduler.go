@@ -53,6 +53,7 @@ type Config struct {
 	Image                       string
 	AgentTokenSecretName        string
 	JobTTL                      time.Duration
+	JobActiveDeadlineSeconds    time.Duration
 	AdditionalRedactedVars      []string
 	WorkspaceVolume             *corev1.Volume
 	AgentConfig                 *config.AgentConfig
@@ -75,6 +76,7 @@ func New(logger *zap.Logger, client kubernetes.Interface, cfg Config) *worker {
 }
 
 type KubernetesPlugin struct {
+	Job               *batchv1.Job           `json:"job,omitempty"`
 	PodSpec           *corev1.PodSpec        `json:"podSpec,omitempty"`
 	PodSpecPatch      *corev1.PodSpec        `json:"podSpecPatch,omitempty"`
 	GitEnvFrom        []corev1.EnvFromSource `json:"gitEnvFrom,omitempty"`
@@ -353,6 +355,15 @@ func (w *worker) Build(podSpec *corev1.PodSpec, skipCheckout bool, inputs buildI
 
 	ttl := int32(w.cfg.JobTTL.Seconds())
 	kjob.Spec.TTLSecondsAfterFinished = &ttl
+
+	activeDeadlineSeconds := int64(w.cfg.JobActiveDeadlineSeconds.Seconds())
+	kjob.Spec.ActiveDeadlineSeconds = &activeDeadlineSeconds
+
+	if inputs.k8sPlugin != nil && inputs.k8sPlugin.Job != nil {
+		if inputs.k8sPlugin.Job.Spec.ActiveDeadlineSeconds != nil {
+			kjob.Spec.ActiveDeadlineSeconds = inputs.k8sPlugin.Job.Spec.ActiveDeadlineSeconds
+		}
+	}
 
 	// Env vars used for command containers
 	containerEnv := append([]corev1.EnvVar{}, env...)

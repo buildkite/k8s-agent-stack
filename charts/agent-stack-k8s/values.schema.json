@@ -189,6 +189,12 @@
           "title": "The job-ttl Schema",
           "examples": [""]
         },
+        "job-active-deadline-seconds": {
+          "type": "string",
+          "default": "6h",
+          "title": "The amount of time a kubernetes job is allowed to run before terminating all pods and failing the job",
+          "examples": ["6h", "12h30m"]
+        },
         "max-in-flight": {
           "type": "integer",
           "default": 0,
